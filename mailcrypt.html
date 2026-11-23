@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Gp/1ICJhudAXUi8aozwQojfaiMkH40BVWvPkGwF0ejI='; style-src 'sha256-CbvDsn2XIvfsCSepInbJb645Bm6HIiuKZxzXdRvtl3M='; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<!-- Public address of this page, used in the links and "Decrypt at:" lines it writes.
+     Leave empty to use the address the page was loaded from (nothing when opened from a file). -->
+<meta name="mailcrypt-home" content="https://hoddmimes.com/mailcrypt/">
+<title>mailcrypt</title>
+<style>
+:root {
+  --bg: #f6f5f2; --panel: #ffffff; --text: #1c1c1a; --muted: #6b6a65; --line: #dcdad3;
+  --accent: #2f5d50; --accent-text: #ffffff; --warn-bg: #fff4d6; --warn-text: #6b4e00;
+  --err-bg: #fde7e4; --err-text: #8a1f11; --ok-bg: #e4f2ea; --ok-text: #1f5a37;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161715; --panel: #1f201e; --text: #e8e6e0; --muted: #a09e97; --line: #363733;
+    --accent: #7fbfa8; --accent-text: #10201a; --warn-bg: #3a3010; --warn-text: #f1d58a;
+    --err-bg: #3d1a15; --err-text: #f5b3a8; --ok-bg: #173225; --ok-text: #a8dcbd;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 44rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+h1 { font-size: 1.4rem; margin: 0; letter-spacing: -0.01em; }
+.tagline { color: var(--muted); margin: 0.25rem 0 1.25rem; }
+nav { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--line); margin-bottom: 1.25rem; }
+nav button {
+  background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted);
+  padding: 0.5rem 0.9rem; font: inherit; cursor: pointer; margin-bottom: -1px;
+}
+nav button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+section.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1.25rem; }
+label { display: block; font-weight: 600; margin: 0 0 0.35rem; }
+.field { margin-bottom: 1rem; }
+.hint { color: var(--muted); font-size: 0.875rem; margin: 0.35rem 0 0; }
+textarea, input[type="text"], input[type="password"] {
+  width: 100%; font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 0.55rem 0.65rem;
+}
+textarea { min-height: 9rem; resize: vertical; }
+textarea.mono, input.mono { font-family: var(--mono); font-size: 0.85rem; }
+textarea:focus, input:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.row > input { flex: 1 1 14rem; }
+button.btn {
+  font: inherit; border-radius: 6px; padding: 0.55rem 1rem; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel); color: var(--text);
+}
+button.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+button.btn:disabled { opacity: 0.6; cursor: progress; }
+.msg { border-radius: 6px; padding: 0.6rem 0.8rem; margin: 1rem 0 0; font-size: 0.925rem; }
+.msg.warn { background: var(--warn-bg); color: var(--warn-text); }
+.msg.err { background: var(--err-bg); color: var(--err-text); }
+.msg.ok { background: var(--ok-bg); color: var(--ok-text); }
+.result { margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+.result textarea { min-height: 12rem; }
+.loaded { font-family: var(--mono); font-size: 0.85rem; color: var(--muted); word-break: break-all; }
+footer { color: var(--muted); font-size: 0.85rem; margin-top: 1.5rem; }
+footer p { margin: 0.4rem 0; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>mailcrypt</h1>
+  </header>
+  <p class="tagline">Encrypt text with a shared password, paste it into any mail. Everything happens in this page; nothing is sent anywhere.</p>
+
+  <nav role="tablist">
+    <button role="tab" id="tab-encrypt" aria-controls="view-encrypt" aria-selected="true">Encrypt</button>
+    <button role="tab" id="tab-decrypt" aria-controls="view-decrypt" aria-selected="false">Decrypt</button>
+  </nav>
+
+  <!-- ENCRYPT -->
+  <section class="panel" id="view-encrypt" role="tabpanel" aria-labelledby="tab-encrypt">
+    <div class="field">
+      <label for="enc-text">Message</label>
+      <textarea id="enc-text" placeholder="Write the text to encrypt"></textarea>
+    </div>
+    <div class="field">
+      <label for="enc-pw">Password</label>
+      <div class="row">
+        <input id="enc-pw" type="password" autocomplete="off" spellcheck="false" class="mono">
+        <button class="btn" id="enc-show" type="button">Show</button>
+      </div>
+      <p class="hint">At least 8 characters. Give the recipient the password some other way: SMS, Signal, phone. Never in the same mail.</p>
+    </div>
+    <button class="btn primary" id="enc-go" type="button">Encrypt</button>
+    <p class="msg err" id="enc-err" hidden></p>
+
+    <div class="result" id="enc-result" hidden>
+      <label for="enc-out">Paste this into your mail</label>
+      <textarea id="enc-out" class="mono" readonly></textarea>
+      <div class="row">
+        <button class="btn primary" id="enc-copy" type="button">Copy</button>
+      </div>
+      <p class="msg warn" id="enc-out-warn" hidden></p>
+    </div>
+  </section>
+
+  <!-- DECRYPT -->
+  <section class="panel" id="view-decrypt" role="tabpanel" aria-labelledby="tab-decrypt" hidden>
+    <div class="field" id="dec-paste-field">
+      <label for="dec-in">Encrypted message</label>
+      <textarea id="dec-in" class="mono" placeholder="Paste the whole MAILCRYPT block, or the link, from the mail"></textarea>
+      <p class="hint">Quote marks (&gt;), line breaks and surrounding mail text are fine.</p>
+    </div>
+    <div class="field" id="dec-loaded-field" hidden>
+      <label>Encrypted message</label>
+      <p class="loaded" id="dec-loaded"></p>
+      <p class="hint">Loaded from the link. <button class="btn" id="dec-paste-instead" type="button">Paste a different message</button></p>
+    </div>
+    <div class="field">
+      <label for="dec-pw">Password</label>
+      <div class="row">
+        <input id="dec-pw" type="password" autocomplete="off" spellcheck="false" class="mono">
+        <button class="btn" id="dec-show" type="button">Show</button>
+      </div>
+    </div>
+    <button class="btn primary" id="dec-go" type="button">Decrypt</button>
+    <p class="msg err" id="dec-err" hidden></p>
+
+    <div class="result" id="dec-result" hidden>
+      <label for="dec-out">Decrypted message</label>
+      <textarea id="dec-out" readonly></textarea>
+      <div class="row">
+        <button class="btn" id="dec-copy" type="button">Copy</button>
+        <button class="btn primary" id="dec-reply" type="button">Write an encrypted reply</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>AES-256-GCM, key from PBKDF2-SHA256 (600,000 iterations), new random salt and IV per message. Runs offline: you can save this page and open it from disk.</p>
+  </footer>
+</main>
+
+<script>
+"use strict";
+/* ---------- core (no DOM; also used by tests) ---------- */
+const MC = (() => {
+  const VERSION = "v1";
+  const ITERATIONS = 600000;
+  const SALT_LEN = 16;
+  const IV_LEN = 12;
+  const AAD = new TextEncoder().encode("mailcrypt-v1");
+  const BEGIN = "-----BEGIN MAILCRYPT MESSAGE-----";
+  const END = "-----END MAILCRYPT MESSAGE-----";
+  const MAX_LINK = 2000;
+  const MIN_PASSWORD = 8;
+  const enc = new TextEncoder();
+  const dec = new TextDecoder("utf-8", { fatal: true });
+
+  function b64urlEncode(bytes) {
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function b64urlDecode(s) {
+    if (!/^[A-Za-z0-9_-]*$/.test(s) || s.length % 4 === 1) throw new FormatError();
+    const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  class FormatError extends Error {}
+  class DecryptError extends Error {}
+  class PasswordError extends Error {}
+
+  // Same rules on both sides, so a password typed slightly differently still works.
+  function normalizePassword(pw) {
+    return pw.normalize("NFC").trim().replace(/\s+/g, " ");
+  }
+
+  async function deriveKey(password, salt) {
+    const base = await crypto.subtle.importKey("raw", enc.encode(normalizePassword(password)), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey(
+      { name: "PBKDF2", hash: "SHA-256", salt, iterations: ITERATIONS },
+      base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  }
+
+  // Characters counted after normalisation, by code point (an emoji counts as one).
+  function passwordTooShort(pw) {
+    return [...normalizePassword(pw)].length < MIN_PASSWORD;
+  }
+
+  async function encrypt(plaintext, password) {
+    if (passwordTooShort(password)) throw new PasswordError("The password must be at least " + MIN_PASSWORD + " characters.");
+    const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN));
+    const iv = crypto.getRandomValues(new Uint8Array(IV_LEN));
+    const key = await deriveKey(password, salt);
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: AAD }, key, enc.encode(plaintext)));
+    return [VERSION, b64urlEncode(salt), b64urlEncode(iv), b64urlEncode(ct)].join(".");
+  }
+
+  async function decrypt(token, password) {
+    const parts = token.split(".");
+    if (parts.length !== 4) throw new FormatError();
+    if (parts[0] !== VERSION) throw new FormatError("unsupported version " + parts[0]);
+    const salt = b64urlDecode(parts[1]), iv = b64urlDecode(parts[2]), ct = b64urlDecode(parts[3]);
+    if (salt.length !== SALT_LEN || iv.length !== IV_LEN || ct.length < 16) throw new FormatError();
+    const key = await deriveKey(password, salt);
+    let pt;
+    try {
+      pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv, additionalData: AAD }, key, ct);
+    } catch (e) {
+      throw new DecryptError();
+    }
+    return dec.decode(pt);
+  }
+
+  // Find a token in whatever the user pasted: an armored block, a link, or a bare token.
+  // Tolerates "> " quoting, wrapped lines and surrounding mail text.
+  function extractToken(text) {
+    const lines = text.replace(/\r\n?/g, "\n").split("\n").map(l => l.replace(/^[\s>]*/, ""));
+    const b = lines.findIndex(l => l.includes(BEGIN));
+    if (b !== -1) {
+      let e = lines.findIndex((l, i) => i > b && l.includes(END));
+      if (e === -1) e = lines.length;
+      const body = lines.slice(b + 1, e).filter(l => !/^\s*decrypt at:/i.test(l)).join("").replace(/\s+/g, "");
+      const m = body.match(/v\d+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/);
+      if (m) return m[0];
+    }
+    // No (usable) block: look for a link fragment or a bare token. Links may be wrapped across lines.
+    const joined = lines.join("");
+    const m = joined.match(/v\d+\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/);
+    return m ? m[0] : null;
+  }
+
+  function wrap(s, width) {
+    const out = [];
+    for (let i = 0; i < s.length; i += width) out.push(s.slice(i, i + width));
+    return out.join("\n");
+  }
+
+  // The text the user pastes into the mail.
+  function mailText(token, home) {
+    const link = home ? home + "#" + token : null;
+    const parts = [];
+    let linkTooLong = false;
+    if (link && link.length <= MAX_LINK) {
+      parts.push("Encrypted message. Open this link and enter the password you were given:", link, "");
+    } else {
+      linkTooLong = !!link;
+      parts.push(home ? "Encrypted message. Open " + home + ", paste everything below and enter the password you were given:"
+                      : "Encrypted message. Open mailcrypt, paste everything below and enter the password you were given:", "");
+    }
+    parts.push(BEGIN);
+    if (home) parts.push("Decrypt at: " + home);
+    parts.push(wrap(token, 64), END);
+    return { text: parts.join("\n"), linkTooLong };
+  }
+
+  return { encrypt, decrypt, extractToken, mailText, normalizePassword, passwordTooShort,
+           FormatError, DecryptError, PasswordError, VERSION, MIN_PASSWORD };
+})();
+if (typeof module !== "undefined") module.exports = MC;
+
+/* ---------- UI ---------- */
+if (typeof document !== "undefined") (() => {
+  const $ = id => document.getElementById(id);
+
+  function home() {
+    const configured = document.querySelector('meta[name="mailcrypt-home"]').content.trim();
+    if (configured) return configured.replace(/#.*$/, "");
+    if (location.protocol === "https:" || location.protocol === "http:") return location.origin + location.pathname;
+    return null;
+  }
+
+  function show(el, text) { el.textContent = text; el.hidden = false; }
+  function hide(el) { el.hidden = true; }
+
+  function selectTab(name) {
+    for (const t of ["encrypt", "decrypt"]) {
+      $("tab-" + t).setAttribute("aria-selected", String(t === name));
+      $("view-" + t).hidden = t !== name;
+    }
+  }
+  $("tab-encrypt").addEventListener("click", () => selectTab("encrypt"));
+  $("tab-decrypt").addEventListener("click", () => selectTab("decrypt"));
+
+  function toggleShow(input, btn) {
+    btn.addEventListener("click", () => {
+      const showing = input.type === "text";
+      input.type = showing ? "password" : "text";
+      btn.textContent = showing ? "Show" : "Hide";
+    });
+  }
+  toggleShow($("enc-pw"), $("enc-show"));
+  toggleShow($("dec-pw"), $("dec-show"));
+
+  async function copy(text, btn) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); ta.remove();
+    }
+    const old = btn.textContent;
+    btn.textContent = "Copied";
+    setTimeout(() => { btn.textContent = old; }, 1500);
+  }
+
+  async function busy(btn, label, fn) {
+    const old = btn.textContent;
+    btn.disabled = true; btn.textContent = label;
+    try { return await fn(); } finally { btn.disabled = false; btn.textContent = old; }
+  }
+
+  /* encrypt */
+
+  $("enc-go").addEventListener("click", () => busy($("enc-go"), "Encrypting…", async () => {
+    hide($("enc-err")); hide($("enc-result"));
+    const text = $("enc-text").value, pw = $("enc-pw").value;
+    if (!text.trim()) return show($("enc-err"), "Write a message first.");
+    if (!MC.normalizePassword(pw)) return show($("enc-err"), "Enter a password.");
+    if (MC.passwordTooShort(pw)) return show($("enc-err"), "The password must be at least " + MC.MIN_PASSWORD + " characters.");
+    try {
+      const token = await MC.encrypt(text, pw);
+      const h = home();
+      const { text: out, linkTooLong } = MC.mailText(token, h);
+      $("enc-out").value = out;
+      if (!h) show($("enc-out-warn"), "This page was opened from a file, so the mail has no link. The recipient needs their own copy of this page, or set mailcrypt-home in the page.");
+      else if (linkTooLong) show($("enc-out-warn"), "The message is too long for a reliable link, so the mail only has the text block. The recipient pastes it into the page.");
+      else hide($("enc-out-warn"));
+      $("enc-result").hidden = false;
+      $("enc-out").focus(); $("enc-out").select();
+    } catch (e) {
+      show($("enc-err"), "Encryption failed: " + e.message);
+    }
+  }));
+  $("enc-copy").addEventListener("click", () => copy($("enc-out").value, $("enc-copy")));
+
+  /* decrypt */
+  let linkToken = null;
+  function loadFromFragment() {
+    const frag = decodeURIComponent(location.hash.slice(1));
+    const token = frag ? MC.extractToken(frag) : null;
+    if (!token) return false;
+    linkToken = token;
+    $("dec-loaded").textContent = token.length > 90 ? token.slice(0, 60) + "…" + token.slice(-20) : token;
+    $("dec-loaded-field").hidden = false; $("dec-paste-field").hidden = true;
+    hide($("dec-err")); hide($("dec-result"));
+    selectTab("decrypt");
+    $("dec-pw").focus();
+    return true;
+  }
+  $("dec-paste-instead").addEventListener("click", () => {
+    linkToken = null;
+    $("dec-loaded-field").hidden = true; $("dec-paste-field").hidden = false;
+    $("dec-in").focus();
+  });
+
+  async function doDecrypt() {
+    hide($("dec-err")); hide($("dec-result"));
+    const token = linkToken || MC.extractToken($("dec-in").value);
+    if (!token) return show($("dec-err"), "Couldn't find an encrypted message in that text. Paste the whole block, from BEGIN to END.");
+    const pw = $("dec-pw").value;
+    if (!MC.normalizePassword(pw)) return show($("dec-err"), "Enter the password.");
+    try {
+      $("dec-out").value = await MC.decrypt(token, pw);
+      $("dec-result").hidden = false;
+    } catch (e) {
+      if (e instanceof MC.DecryptError) show($("dec-err"), "Wrong password, or the message was damaged on the way.");
+      else if (e instanceof MC.FormatError) show($("dec-err"), e.message.startsWith("unsupported")
+        ? "This message was made with a newer version of mailcrypt (" + e.message + "). Get the current page."
+        : "The encrypted message is incomplete or damaged. Paste the whole block, from BEGIN to END.");
+      else show($("dec-err"), "Decryption failed: " + e.message);
+    }
+  }
+  $("dec-go").addEventListener("click", () => busy($("dec-go"), "Decrypting…", doDecrypt));
+  $("dec-pw").addEventListener("keydown", e => { if (e.key === "Enter") $("dec-go").click(); });
+
+  $("dec-copy").addEventListener("click", () => copy($("dec-out").value, $("dec-copy")));
+  $("dec-reply").addEventListener("click", () => {
+    $("enc-pw").value = $("dec-pw").value;
+    $("enc-text").value = ""; hide($("enc-result"));
+    selectTab("encrypt");
+    $("enc-text").focus();
+  });
+
+  window.addEventListener("hashchange", loadFromFragment);
+  loadFromFragment();
+})();
+</script>
+</body>
+</html>
