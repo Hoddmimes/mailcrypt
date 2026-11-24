@@ -4,6 +4,10 @@ Password-based encryption for ordinary email, done entirely in the browser.
 
 Live at **https://hoddmimes.com/mailcrypt/**. Check the page before you trust it; see [VERIFY.md](VERIFY.md).
 
+
+![Screenshot](screen.png)
+
+
 ## Purpose
 
 mailcrypt lets two people exchange confidential text over any mail client without installing
